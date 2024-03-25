@@ -40,7 +40,7 @@ create sequence seq_reservas;
 create table reservas(
 	id_reserva	integer primary key,
 	cliente  	varchar(9) references clientes,
-    evento      integer references eventos,
+  evento      integer references eventos,
 	abono       integer references abonos,
 	fecha	date not null
 );
@@ -53,8 +53,25 @@ create or replace procedure reservar_evento(
   arg_nombre_evento varchar, 
   arg_fecha date
 ) is
+
+  evento_pasado EXCEPTION;
+  PRAGMA EXCEPTION_INIT(evento_pasado, -20001);
+  msg_evento_pasado CONSTANT VARCHAR2(100) := 'El evento ya ha pasado';
+
+  evento_no_existe EXCEPTION;
+  PRAGMA EXCEPTION_INIT(evento_no_existe, -20002);
+  msg_evento_no_existe CONSTANT VARCHAR2(100) := 'El evento no existe';
+
+  multiples_eventos EXCEPTION
+  PRAGMA EXCEPTION_INIT(multiples_eventos, -20003);
+  msg_multiples_eventos CONSTANT VARCHAR2(100) := 'Hay más de un evento con ese nombre';
+
+
+
   v_evento_id eventos.id_evento%TYPE;
   v_fecha_evento eventos.fecha%TYPE;
+
+
 begin
   select id_evento, fecha
   into v_evento_id, v_fecha_evento
@@ -62,16 +79,18 @@ begin
   where nombre_evento = arg_nombre_evento;
 
   if v_fecha_evento < current_date then
-    raise_application_error(-20001, 'No se pueden reservar eventos pasados.');
+    raise_application_error(-20001, msg_evento_pasado);
   end if;
 
   -- Continuar con las siguientes validaciones y la reserva
 
 exception
   when NO_DATA_FOUND then
-    raise_application_error(-20002, 'El evento no existe.');
+    raise_application_error(-20002, msg_evento_no_existe);
   when TOO_MANY_ROWS then
-    raise_application_error(-20003, 'Error de datos: múltiples eventos con el mismo nombre.');
+    raise_application_error(-20003, msg_multiples_eventos);
+  when others then
+    raise;
 end;
 /
 
