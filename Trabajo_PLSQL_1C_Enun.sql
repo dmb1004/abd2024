@@ -48,10 +48,30 @@ create table reservas(
 
 	
 -- Procedimiento a implementar para realizar la reserva
-create or replace procedure reservar_evento( arg_NIF_cliente varchar,
- arg_nombre_evento varchar, arg_fecha date) is
- begin
-  null;
+create or replace procedure reservar_evento( 
+  arg_NIF_cliente varchar,
+  arg_nombre_evento varchar, 
+  arg_fecha date
+) is
+  v_evento_id eventos.id_evento%TYPE;
+  v_fecha_evento eventos.fecha%TYPE;
+begin
+  select id_evento, fecha
+  into v_evento_id, v_fecha_evento
+  from eventos
+  where nombre_evento = arg_nombre_evento;
+
+  if v_fecha_evento < current_date then
+    raise_application_error(-20001, 'No se pueden reservar eventos pasados.');
+  end if;
+
+  -- Continuar con las siguientes validaciones y la reserva
+
+exception
+  when NO_DATA_FOUND then
+    raise_application_error(-20002, 'El evento no existe.');
+  when TOO_MANY_ROWS then
+    raise_application_error(-20003, 'Error de datos: múltiples eventos con el mismo nombre.');
 end;
 /
 
@@ -126,19 +146,35 @@ begin
   --caso 1 Reserva correcta, se realiza
   begin
     inicializa_test;
+    reservar_evento('12345678A', 'concierto_bisbal', TO_DATE('12/12/2024', 'DD/MM/YYYY'));
+    dbms_output.put_line('Caso 1: Reserva correcta completada.');
+  exception
+    when others then
+      l_error_msg := SQLERRM;
+      dbms_output.put_line('Caso 1: Fallo en la reserva correcta - ' || l_error_msg);
   end;
-  
   
   --caso 2 Evento pasado
   begin
     inicializa_test;
+    reservar_evento('12345678A', 'concierto_la_moda', TO_DATE('27/06/2023', 'DD/MM/YYYY'));
+    dbms_output.put_line('Caso 2: La reserva de un evento pasado no debería ser posible.');
+  exception
+    when others then
+      l_error_msg := SQLERRM;
+      dbms_output.put_line('Caso 2: Excepción esperada - ' || l_error_msg);
   end;
   
   --caso 3 Evento inexistente
   begin
     inicializa_test;
+    reservar_evento('12345678A', 'concierto_cali_yeldandy', TO_DATE('27/06/2023', 'DD/MM/YYYY'));
+    dbms_output.put_line('Caso 3: La reserva de un evento pasado no debería ser posible.');
+  exception
+    when others then
+      l_error_msg := SQLERRM;
+      dbms_output.put_line('Caso 3: Excepción esperada - ' || l_error_msg);
   end;
-  
 
   --caso 4 Cliente inexistente  
   begin
