@@ -94,6 +94,21 @@ exception
 end;
 /
 
+  
+/*
+exception
+  when NO_DATA_FOUND then
+    if sqlcode = -20002 then
+        raise_application_error(-20002, 'Cliente inexistente.');
+    else
+        raise_application_error(-20003, 'El evento ' || arg_nombre_evento || ' no existe');
+    end if;
+  when TOO_MANY_ROWS then
+    raise_application_error(-20003, 'Error de datos: múltiples eventos con el mismo nombre.');
+end;
+/
+*/
+
 ------ Deja aquí tus respuestas a las preguntas del enunciado:
 -- * P4.1
 --
@@ -195,10 +210,22 @@ begin
       dbms_output.put_line('Caso 3: Excepción esperada - ' || l_error_msg);
   end;
 
-  --caso 4 Cliente inexistente  
+   --caso 4 Cliente inexistente  
+  begin
+    inicializa_test;
+    reservar_evento('11111111C', 'concierto_bisbal', TO_DATE('12/12/2024', 'DD/MM/YYYY'));
+    dbms_output.put_line('Caso 4: El cliente no debería existir');
+  exception
+    when others then
+      l_error_msg := SQLERRM;
+      dbms_output.put_line('Caso 4: Excepción esperada - ' || l_error_msg);
+  end;
+  
+  --caso 5 El cliente no tiene saldo suficiente
   begin
     inicializa_test;
   end;
+
   
   --caso 5 El cliente no tiene saldo suficiente
   begin
