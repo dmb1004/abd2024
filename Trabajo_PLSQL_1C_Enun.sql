@@ -62,7 +62,7 @@ create or replace procedure reservar_evento(
   PRAGMA EXCEPTION_INIT(evento_no_existe, -20002);
   msg_evento_no_existe CONSTANT VARCHAR2(100) := 'El evento no existe';
 
-  multiples_eventos EXCEPTION
+  multiples_eventos EXCEPTION;
   PRAGMA EXCEPTION_INIT(multiples_eventos, -20003);
   msg_multiples_eventos CONSTANT VARCHAR2(100) := 'Hay más de un evento con ese nombre';
 
