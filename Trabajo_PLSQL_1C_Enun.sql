@@ -17,14 +17,13 @@ create table clientes(
 	ape2	varchar(20) not null
 );
 
-
 create sequence seq_abonos;
 
 create table abonos(
 	id_abono	integer primary key,
 	cliente  	varchar(9) references clientes,
 	saldo	    integer not null check (saldo>=0)
-    );
+);
 
 create sequence seq_eventos;
 
@@ -45,7 +44,6 @@ create table reservas(
 	fecha	date not null
 );
 
-
 	
 -- Procedimiento a implementar para realizar la reserva
 create or replace procedure reservar_evento( 
@@ -56,39 +54,50 @@ create or replace procedure reservar_evento(
 
   evento_pasado EXCEPTION;
   PRAGMA EXCEPTION_INIT(evento_pasado, -20001);
-  msg_evento_pasado CONSTANT VARCHAR2(100) := 'El evento ya ha pasado';
+  msg_evento_pasado CONSTANT VARCHAR2(100) := "No se pueden reservar eventos pasados.";
 
   evento_no_existe EXCEPTION;
-  PRAGMA EXCEPTION_INIT(evento_no_existe, -20002);
-  msg_evento_no_existe CONSTANT VARCHAR2(100) := 'El evento no existe';
+  PRAGMA EXCEPTION_INIT(evento_no_existe, -20003);
+  msg_evento_no_existe CONSTANT VARCHAR2(100) := "El evento" ||  arg_nombre_evento || "no existe";
 
   multiples_eventos EXCEPTION;
-  PRAGMA EXCEPTION_INIT(multiples_eventos, -20003);
-  msg_multiples_eventos CONSTANT VARCHAR2(100) := 'Hay más de un evento con ese nombre';
-
-
+  PRAGMA EXCEPTION_INIT(multiples_eventos, -20002);
+  msg_multiples_eventos CONSTANT VARCHAR2(100) := "Hay más de un evento con ese nombre";
 
   v_evento_id eventos.id_evento%TYPE;
   v_fecha_evento eventos.fecha%TYPE;
 
 
 begin
+
   select id_evento, fecha
   into v_evento_id, v_fecha_evento
   from eventos
   where nombre_evento = arg_nombre_evento;
 
-  if v_fecha_evento < current_date then
+  if v_fecha_evento < sysdate then
     raise_application_error(-20001, msg_evento_pasado);
   end if;
 
-  -- Continuar con las siguientes validaciones y la reserva
+  select clientes.NIF, abonos.id_abono, abonos.saldo
+  into v_NIF, v_id_abono, v_saldo
+  from clientes join abonos on clientes.NIF = abonos.cliente
+  where clientes.NIF = arg_NIF_cliente;
+  for update;
+
+  if v_saldo <= 0 then
+    raise_application_error(-20004, msg_saldo_insuficiente);
+  end if;
+
+  insert into reservas values (seq_reservas.nextval, arg_NIF_cliente, v_evento_id, v_id_abono, arg_fecha);
+
+  commit;
 
 exception
   when NO_DATA_FOUND then
-    raise_application_error(-20002, msg_evento_no_existe);
+    raise_application_error(-20003, msg_evento_no_existe);
   when TOO_MANY_ROWS then
-    raise_application_error(-20003, msg_multiples_eventos);
+    raise_application_error(-20002, msg_multiples_eventos);
   when others then
     raise;
 end;
@@ -136,9 +145,7 @@ begin
     execute immediate
     'select ' || p_seq_name || '.nextval from dual' INTO l_val;
 
-    execute immediate
-    'alter sequence ' || p_seq_name || ' increment by 1 minvalue 0';
-
+    execute immediate    'alter sequence ' || p_seq_name || ' increment by 1 minvalue 0';
 end;
 /
 
