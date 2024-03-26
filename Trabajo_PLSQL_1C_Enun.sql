@@ -63,10 +63,6 @@ create or replace procedure reservar_evento(
   cliente_no_existe EXCEPTION;
   PRAGMA EXCEPTION_INIT(cliente_no_existe, -20002);
   msg_cliente_no_existe CONSTANT VARCHAR2(100) := 'Cliente inexistente.';
-
-  multiples_eventos EXCEPTION;
-  PRAGMA EXCEPTION_INIT(multiples_eventos, -20005);
-  msg_multiples_eventos CONSTANT VARCHAR2(100) := 'Hay más de un evento con ese nombre';
   
   /*saldo_insuficiente EXCEPTION;
   PRAGMA EXCEPTION_INIT(saldo_insuficiente, -20004);
@@ -77,6 +73,7 @@ create or replace procedure reservar_evento(
   v_NIF clientes.NIF%TYPE;
   v_id_abono abonos.id_abono%TYPE;
   v_saldo abonos.saldo%TYPE;
+  v_asientos_disponibles eventos.asientos_disponibles%TYPE;
 
 
 begin
@@ -110,9 +107,15 @@ begin
   
   UPDATE abonos SET saldo = saldo - 1 WHERE id_abono = v_id_abono;
     
-  UPDATE eventos
-  SET asientos_disponibles = asientos_disponibles - 1
-  WHERE id_evento = v_evento_id;
+  select eventos.asientos_disponibles
+  into v_asientos_disponibles
+  from eventos
+  where eventos.nombre_evento = arg_nombre_evento
+  for update;
+    
+  if v_asientos_disponibles <= 0 then
+    raise_application_error(-20006, 'No hay asientos disponibles');
+  end if;
   
   insert into reservas values (seq_reservas.nextval, arg_NIF_cliente, v_evento_id, v_id_abono, arg_fecha);
 
@@ -122,8 +125,6 @@ exception
   when NO_DATA_FOUND then
     rollback;
     raise_application_error(-20002, msg_cliente_no_existe);
-  when TOO_MANY_ROWS then
-    raise_application_error(-20002, msg_multiples_eventos);
   when others then
     raise;
 end;
