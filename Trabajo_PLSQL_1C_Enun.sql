@@ -54,39 +54,58 @@ create or replace procedure reservar_evento(
 
   evento_pasado EXCEPTION;
   PRAGMA EXCEPTION_INIT(evento_pasado, -20001);
-  msg_evento_pasado CONSTANT VARCHAR2(100) := "No se pueden reservar eventos pasados.";
+  msg_evento_pasado CONSTANT VARCHAR2(100) := 'No se pueden reservar eventos pasados.';
 
   evento_no_existe EXCEPTION;
   PRAGMA EXCEPTION_INIT(evento_no_existe, -20003);
-  msg_evento_no_existe CONSTANT VARCHAR2(100) := "El evento" ||  arg_nombre_evento || "no existe";
+  msg_evento_no_existe CONSTANT VARCHAR2(100) := 'El evento' ||  arg_nombre_evento || 'no existe';
+  
+  cliente_no_existe EXCEPTION;
+  PRAGMA EXCEPTION_INIT(cliente_no_existe, -20002);
+  msg_cliente_no_existe CONSTANT VARCHAR2(100) := 'Cliente inexistente.';
 
   multiples_eventos EXCEPTION;
-  PRAGMA EXCEPTION_INIT(multiples_eventos, -20002);
-  msg_multiples_eventos CONSTANT VARCHAR2(100) := "Hay más de un evento con ese nombre";
+  PRAGMA EXCEPTION_INIT(multiples_eventos, -20005);
+  msg_multiples_eventos CONSTANT VARCHAR2(100) := 'Hay más de un evento con ese nombre';
+  
+  /*saldo_insuficiente EXCEPTION;
+  PRAGMA EXCEPTION_INIT(saldo_insuficiente, -20004);
+  msg_saldo_insuficiente CONSTANT VARCHAR2(100) := 'Saldo en abono insuficiente';*/
 
   v_evento_id eventos.id_evento%TYPE;
   v_fecha_evento eventos.fecha%TYPE;
+  v_NIF clientes.NIF%TYPE;
+  v_id_abono abonos.id_abono%TYPE;
+  v_saldo abonos.saldo%TYPE;
 
 
 begin
-
-  select id_evento, fecha
-  into v_evento_id, v_fecha_evento
-  from eventos
-  where nombre_evento = arg_nombre_evento;
-
-  if v_fecha_evento < sysdate then
-    raise_application_error(-20001, msg_evento_pasado);
-  end if;
+    begin
+        select id_evento, fecha
+        into v_evento_id, v_fecha_evento
+        from eventos
+        where nombre_evento = arg_nombre_evento;
+    
+        if v_fecha_evento < sysdate then
+            raise_application_error(-20001, msg_evento_pasado);
+        end if;
+      
+    exception 
+        when no_data_found then
+            rollback;
+            raise_application_error(-20003, msg_evento_no_existe);
+        when others then
+            raise;
+    end;
 
   select clientes.NIF, abonos.id_abono, abonos.saldo
   into v_NIF, v_id_abono, v_saldo
   from clientes join abonos on clientes.NIF = abonos.cliente
-  where clientes.NIF = arg_NIF_cliente;
+  where clientes.NIF = arg_NIF_cliente
   for update;
 
   if v_saldo <= 0 then
-    raise_application_error(-20004, msg_saldo_insuficiente);
+    raise_application_error(-20004, 'Saldo en abono insuficiente');
   end if;
 
   insert into reservas values (seq_reservas.nextval, arg_NIF_cliente, v_evento_id, v_id_abono, arg_fecha);
@@ -95,7 +114,8 @@ begin
 
 exception
   when NO_DATA_FOUND then
-    raise_application_error(-20003, msg_evento_no_existe);
+    rollback;
+    raise_application_error(-20002, msg_cliente_no_existe);
   when TOO_MANY_ROWS then
     raise_application_error(-20002, msg_multiples_eventos);
   when others then
@@ -104,20 +124,6 @@ end;
 /
 
   
-/*
-exception
-  when NO_DATA_FOUND then
-    if sqlcode = -20002 then
-        raise_application_error(-20002, 'Cliente inexistente.');
-    else
-        raise_application_error(-20003, 'El evento ' || arg_nombre_evento || ' no existe');
-    end if;
-  when TOO_MANY_ROWS then
-    raise_application_error(-20003, 'Error de datos: múltiples eventos con el mismo nombre.');
-end;
-/
-*/
-
 ------ Deja aquí tus respuestas a las preguntas del enunciado:
 -- * P4.1
 --
@@ -172,6 +178,7 @@ begin
     
     insert into eventos values ( seq_eventos.nextval, 'concierto_la_moda', date '2023-6-27', 200);
     insert into eventos values ( seq_eventos.nextval, 'teatro_impro', date '2023-7-1', 50);
+    insert into eventos values ( seq_eventos.nextval, 'concierto_bisbal', date '2024-12-12', 50);
 
     commit;
 end;
@@ -182,6 +189,7 @@ exec inicializa_test;
 -- Completa el test
 
 create or replace procedure test_reserva_evento is
+    l_error_msg VARCHAR2(4000);
 begin
 	 
   --caso 1 Reserva correcta, se realiza
@@ -210,7 +218,7 @@ begin
   begin
     inicializa_test;
     reservar_evento('12345678A', 'concierto_cali_yeldandy', TO_DATE('27/06/2023', 'DD/MM/YYYY'));
-    dbms_output.put_line('Caso 3: La reserva de un evento pasado no debería ser posible.');
+    dbms_output.put_line('Caso 3: La reserva de un evento inexistente no debería ser posible.');
   exception
     when others then
       l_error_msg := SQLERRM;
@@ -231,14 +239,13 @@ begin
   --caso 5 El cliente no tiene saldo suficiente
   begin
     inicializa_test;
+    reservar_evento('11111111B', 'concierto_bisbal', TO_DATE('12/12/2024', 'DD/MM/YYYY'));
+    dbms_output.put_line('Caso 5: El cliente no debería tener suficiente saldo');
+  exception
+    when others then
+      l_error_msg := SQLERRM;
+      dbms_output.put_line('Caso 5: Excepción esperada - ' || l_error_msg);
   end;
-
-  
-  --caso 5 El cliente no tiene saldo suficiente
-  begin
-    inicializa_test;
-  end;
-
   
 end;
 /
