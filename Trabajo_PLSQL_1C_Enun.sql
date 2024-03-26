@@ -114,7 +114,7 @@ begin
   for update;
     
   if v_asientos_disponibles <= 0 then
-    raise_application_error(-20006, 'No hay asientos disponibles');
+    raise_application_error(-20005, 'No hay asientos disponibles');
   end if;
   
   insert into reservas values (seq_reservas.nextval, arg_NIF_cliente, v_evento_id, v_id_abono, arg_fecha);
