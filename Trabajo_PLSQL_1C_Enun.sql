@@ -107,7 +107,13 @@ begin
   if v_saldo <= 0 then
     raise_application_error(-20004, 'Saldo en abono insuficiente');
   end if;
-
+  
+  UPDATE abonos SET saldo = saldo - 1 WHERE id_abono = v_id_abono;
+    
+  UPDATE eventos
+  SET asientos_disponibles = asientos_disponibles - 1
+  WHERE id_evento = v_evento_id;
+  
   insert into reservas values (seq_reservas.nextval, arg_NIF_cliente, v_evento_id, v_id_abono, arg_fecha);
 
   commit;
@@ -179,6 +185,8 @@ begin
     insert into eventos values ( seq_eventos.nextval, 'concierto_la_moda', date '2023-6-27', 200);
     insert into eventos values ( seq_eventos.nextval, 'teatro_impro', date '2023-7-1', 50);
     insert into eventos values ( seq_eventos.nextval, 'concierto_bisbal', date '2024-12-12', 50);
+    insert into eventos values ( seq_eventos.nextval, 'concierto_m_escobar', date '2024-01-01', 10);
+    insert into eventos values ( seq_eventos.nextval, 'concierto_chichos', date '2024-10-10', 100);
 
     commit;
 end;
