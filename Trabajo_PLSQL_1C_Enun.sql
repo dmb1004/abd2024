@@ -8,8 +8,6 @@ drop sequence seq_eventos;
 drop sequence seq_reservas;
 
 
--- Creación de tablas y secuencias
-
 create table clientes(
 	NIF	varchar(9) primary key,
 	nombre	varchar(20) not null,
@@ -45,29 +43,39 @@ create table reservas(
 );
 
 	
--- Procedimiento a implementar para realizar la reserva
+
 create or replace procedure reservar_evento( 
   arg_NIF_cliente varchar,
   arg_nombre_evento varchar, 
   arg_fecha date
 ) is
 
+  -- Excepción Tarea 1
   evento_pasado EXCEPTION;
   PRAGMA EXCEPTION_INIT(evento_pasado, -20001);
   msg_evento_pasado CONSTANT VARCHAR2(100) := 'No se pueden reservar eventos pasados.';
 
+  -- Excepción Tarea 2.1
   evento_no_existe EXCEPTION;
   PRAGMA EXCEPTION_INIT(evento_no_existe, -20003);
-  msg_evento_no_existe CONSTANT VARCHAR2(100) := 'El evento' ||  arg_nombre_evento || 'no existe';
+  msg_evento_no_existe CONSTANT VARCHAR2(100) := 'El evento ' ||  arg_nombre_evento || ' no existe';
   
+  -- Excepción Tarea 2.2
   cliente_no_existe EXCEPTION;
   PRAGMA EXCEPTION_INIT(cliente_no_existe, -20002);
   msg_cliente_no_existe CONSTANT VARCHAR2(100) := 'Cliente inexistente.';
   
-  /*saldo_insuficiente EXCEPTION;
+  -- Excepción Tarea 2.3
+  saldo_insuficiente EXCEPTION;
   PRAGMA EXCEPTION_INIT(saldo_insuficiente, -20004);
-  msg_saldo_insuficiente CONSTANT VARCHAR2(100) := 'Saldo en abono insuficiente';*/
+  msg_saldo_insuficiente CONSTANT VARCHAR2(100) := 'Saldo en abono insuficiente';
+  
+  -- Excepción extra añadida
+  sin_asientos EXCEPTION;
+  PRAGMA EXCEPTION_INIT(sin_asientos, -20005);
+  msg_sin_asientos CONSTANT VARCHAR2(100) := 'No hay asientos disponibles';
 
+  -- Declaración de variables necesarias 
   v_evento_id eventos.id_evento%TYPE;
   v_fecha_evento eventos.fecha%TYPE;
   v_NIF clientes.NIF%TYPE;
@@ -102,7 +110,7 @@ begin
   for update;
 
   if v_saldo <= 0 then
-    raise_application_error(-20004, 'Saldo en abono insuficiente');
+    raise_application_error(-20004, msg_saldo_insuficiente);
   end if;
   
   UPDATE abonos SET saldo = saldo - 1 WHERE id_abono = v_id_abono;
@@ -114,7 +122,7 @@ begin
   for update;
     
   if v_asientos_disponibles <= 0 then
-    raise_application_error(-20005, 'No hay asientos disponibles');
+    raise_application_error(-20005, msg_sin_asientos);
   end if;
   
   insert into reservas values (seq_reservas.nextval, arg_NIF_cliente, v_evento_id, v_id_abono, arg_fecha);
@@ -186,8 +194,7 @@ begin
     insert into eventos values ( seq_eventos.nextval, 'concierto_la_moda', date '2023-6-27', 200);
     insert into eventos values ( seq_eventos.nextval, 'teatro_impro', date '2023-7-1', 50);
     insert into eventos values ( seq_eventos.nextval, 'concierto_bisbal', date '2024-12-12', 50);
-    insert into eventos values ( seq_eventos.nextval, 'concierto_m_escobar', date '2024-01-01', 10);
-    insert into eventos values ( seq_eventos.nextval, 'concierto_chichos', date '2024-10-10', 100);
+    insert into eventos values ( seq_eventos.nextval, 'concierto_chichos', date '2024-10-10', 0);
 
     commit;
 end;
@@ -226,7 +233,7 @@ begin
   --caso 3 Evento inexistente
   begin
     inicializa_test;
-    reservar_evento('12345678A', 'concierto_cali_yeldandy', TO_DATE('27/06/2023', 'DD/MM/YYYY'));
+    reservar_evento('12345678A', 'concierto_cali_y_dandy', TO_DATE('27/06/2023', 'DD/MM/YYYY'));
     dbms_output.put_line('Caso 3: La reserva de un evento inexistente no debería ser posible.');
   exception
     when others then
@@ -255,6 +262,18 @@ begin
       l_error_msg := SQLERRM;
       dbms_output.put_line('Caso 5: Excepción esperada - ' || l_error_msg);
   end;
+  
+  --caso extra El evento no tiene asientos disponibles
+  begin
+    inicializa_test;
+    reservar_evento('12345678A', 'concierto_chichos', TO_DATE('12/12/2024', 'DD/MM/YYYY'));
+    dbms_output.put_line('Caso 6: El cliente no podría reservar un concierto sin asientos');
+  exception
+    when others then
+      l_error_msg := SQLERRM;
+      dbms_output.put_line('Caso 6: Excepción esperada - ' || l_error_msg);
+  end;
+
   
 end;
 /
