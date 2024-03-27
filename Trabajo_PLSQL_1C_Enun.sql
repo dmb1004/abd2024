@@ -85,29 +85,23 @@ create or replace procedure reservar_evento(
 
 
 begin
-    begin
-        select id_evento, fecha
-        into v_evento_id, v_fecha_evento
-        from eventos
-        where nombre_evento = arg_nombre_evento;
-    
-        if v_fecha_evento < sysdate then
-            raise_application_error(-20001, msg_evento_pasado);
-        end if;
-      
-    exception 
-        when no_data_found then
-            rollback;
-            raise_application_error(-20003, msg_evento_no_existe);
-        when others then
-            raise;
-    end;
+   if arg_fecha < sysdate then
+   raise_application_error(-20001, msg_evento_pasado);
+   end if;
 
   select clientes.NIF, abonos.id_abono, abonos.saldo
   into v_NIF, v_id_abono, v_saldo
   from clientes join abonos on clientes.NIF = abonos.cliente
   where clientes.NIF = arg_NIF_cliente
   for update;
+  
+  select count(*) into v_evento_id
+  from eventos
+  where nombre_evento = arg_nombre_evento and fecha = arg_fecha;
+  
+  if v_evento_id = 0 then
+    raise_application_error(-20003, msg_evento_no_existe);
+  end if;
 
   if v_saldo <= 0 then
     raise_application_error(-20004, msg_saldo_insuficiente);
@@ -233,7 +227,7 @@ begin
   --caso 3 Evento inexistente
   begin
     inicializa_test;
-    reservar_evento('12345678A', 'concierto_cali_y_dandy', TO_DATE('27/06/2023', 'DD/MM/YYYY'));
+    reservar_evento('12345678A', 'concierto_cali_y_dandy', TO_DATE('27/06/2024', 'DD/MM/YYYY'));
     dbms_output.put_line('Caso 3: La reserva de un evento inexistente no debería ser posible.');
   exception
     when others then
