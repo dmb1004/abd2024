@@ -1,3 +1,9 @@
+/*
+  Nombre: Reservas festival
+  Descripción: Se presenta el caso de uso de una empresa de eventos que organiza un festival de música y teatro
+  Autor: Alvaro Marquez, David Martinez, Martin Gonzalez
+  Fecha de Creación: 2024-03-26
+*/
 drop table clientes cascade constraints;
 drop table abonos   cascade constraints;
 drop table eventos  cascade constraints;
@@ -31,7 +37,7 @@ create table eventos(
 	id_evento	integer  primary key,
 	nombre_evento		varchar(20),
     fecha       date not null,
-	asientos_disponibles	integer not null check (asientos_disponibles>=0)
+	asientos_disponibles	integer not null 
 );
 
 create sequence seq_reservas;
@@ -52,32 +58,33 @@ create or replace procedure reservar_evento(
   arg_fecha date
 ) is
 
+-- Excepcion Tarea 1
   evento_pasado EXCEPTION;
   PRAGMA EXCEPTION_INIT(evento_pasado, -20001);
   msg_evento_pasado CONSTANT VARCHAR2(100) := 'No se pueden reservar eventos pasados.';
-  
+-- Excepcion Tarea 2.2
   cliente_no_existe EXCEPTION;
   PRAGMA EXCEPTION_INIT(cliente_no_existe, -20002);
   msg_cliente_no_existe CONSTANT VARCHAR2(100) := 'Cliente inexistente.';
-
+-- Excepcion Tarea 2.1
   evento_no_existe EXCEPTION;
   PRAGMA EXCEPTION_INIT(evento_no_existe, -20003);
   msg_evento_no_existe CONSTANT VARCHAR2(100) := 'El evento' ||  arg_nombre_evento || 'no existe';
   
-    -- Excepción Tarea 2.3
+-- Excepción Tarea 2.3
   saldo_insuficiente EXCEPTION;
   PRAGMA EXCEPTION_INIT(saldo_insuficiente, -20004);
   msg_saldo_insuficiente CONSTANT VARCHAR2(100) := 'Saldo en abono insuficiente';
-  
+-- Excepción extra añadida
   multiples_eventos EXCEPTION;
   PRAGMA EXCEPTION_INIT(multiples_eventos, -20005);
   msg_multiples_eventos CONSTANT VARCHAR2(100) := 'Hay más de un evento con ese nombre';
   
-  -- Excepción extra añadida
+-- Excepción extra añadida
   sin_asientos EXCEPTION;
   PRAGMA EXCEPTION_INIT(sin_asientos, -20006);
   msg_sin_asientos CONSTANT VARCHAR2(100) := 'No hay asientos disponibles';
-
+--Declaración de variables 
   v_evento_id eventos.id_evento%TYPE;
   v_fecha_evento eventos.fecha%TYPE;
   v_NIF clientes.NIF%TYPE;
@@ -87,15 +94,16 @@ create or replace procedure reservar_evento(
 
 begin
     begin
+        -- Comprueba que el evento existe y no ha pasado
         select id_evento, fecha
         into v_evento_id, v_fecha_evento
         from eventos
         where nombre_evento = arg_nombre_evento;
-    
+        -- lanza excepcion si el evento ya ha pasado
         if v_fecha_evento < sysdate then
             raise_application_error(-20001, msg_evento_pasado);
         end if;
-      
+       -- lanza excepcion si hay mas de un evento con ese nombre
     exception 
         when no_data_found then
             rollback;
@@ -103,23 +111,24 @@ begin
         when others then
             raise;
     end;
-
+-- Comprueba que el cliente existe,Se realiza mediante un cursor implicito con la clausula for update para que el correcto funcionamiento no dependa del nivel de aislamiento. Es una estrategia intermedia ya que se utiliza un select para comprobar la existencia pero a su vez aprovecha la información para capturar la excepcion NO_DATA_FOUND.
   select clientes.NIF, abonos.id_abono, abonos.saldo
   into v_NIF, v_id_abono, v_saldo
   from clientes join abonos on clientes.NIF = abonos.cliente
   where clientes.NIF = arg_NIF_cliente
   for update;
-
+-- Comprobamos que el cliente tiene saldo suficiente
   if v_saldo <= 0 then
     raise_application_error(-20004, msg_saldo_insuficiente);
   end if;
-  
+-- Actualizamos el saldo del abono
   UPDATE abonos SET saldo = saldo - 1 WHERE id_abono = v_id_abono;
-    
+-- Comprobamos que hay asientos disponibles
   UPDATE eventos
   SET asientos_disponibles = asientos_disponibles - 1
-  WHERE id_evento = v_evento_id;
-  
+  WHERE id_evento = v_evento_id
+  and asientos_disponibles > 0;
+-- Si se ha actualizado una fila, se ha realizado la reserva, sino se lanza una excepcion por falta de asientos
   if sql%rowcount=1 then
     insert into reservas values (seq_reservas.nextval, arg_NIF_cliente, v_evento_id, v_id_abono, arg_fecha);
     commit;
@@ -129,7 +138,7 @@ begin
   end if;
 
   commit;
-
+-- Captura de excepciones y rollback
 exception
   when NO_DATA_FOUND then
     rollback;
@@ -143,16 +152,30 @@ end;
 
   
 ------ Deja aquí tus respuestas a las preguntas del enunciado:
--- * P4.1
+-- * P4.1  El resultado de la comprobación del paso 2 ¿sigue siendo fiable en el paso 3?:
 --
--- * P4.2
+-- No sigue siendo fiable en el paso 3, ya que en el paso 3 se puede haber modificado el estado de la base de datos.
+-- siendo posible que el evento ya no exista o el evento ya haya pasado debido a que otra sesion haya modificado el estado de estos valores de la base de datos simultaneamente.
 --
--- * P4.3
+-- * P4.2 2 En el paso 3, la ejecución concurrente del mismo procedimiento reservar_evento con, quizás
+-- otros o los mimos argumentos, ¿podría habernos añadido una reserva no recogida en esa SELECT
+-- que fuese incompatible con nuestra reserva?, ¿por qué?:
 --
--- * P4.4
+-- Una sesion concurrente no puede añadir una nueva reserva que afecte al select ya que hemos utililzado una estrategia pesismista con el uso de la clausula FOR UPDATE en la consulta, lo que bloquea la fila seleccionada hasta que se realice un commit o un rollback. Aunque no afecta a los datos recogigos por la SELECT, si que puede darse el caso de que otra sesion concurrente haya hecho una reserva en el mismo evento y haya agotado los asientos disponibles, lo que provocaria que la reserva actual falle por falta de asientos disponibles. Aunque este error se pueda producir en reducidas ocasiones, hemos ganado eficiencia al no tener que bloquear la tabla eventos para evitar que se realicen reservas en el mismo evento simultaneamente.
 --
--- * P4.5
+-- * P4.3 ¿Qué estrategia de programación has utilizado?
 -- 
+-- Se ha utilizado una estrategia defensiva en la que se comprueban los datos antes de realizar la reserva, sin embargo, manteniendo la linea defensiva hemos implementado tambien caracteristicas tipicas de las estrategias agresivas.
+--
+-- * P4.4 ¿Cómo puede verse este hecho en tu código?
+--
+-- Como hemos dicho anteriormente, para utilizar una estrategia defensiva pero con caracteristicas agresivas hemos utilizado lo siguiente: Por ejemplo a la hora de utilizar la informacion dada por las excepciones como NO_DATA_FOUND o TOO_MANY_ROWS para ahorrar consultas. Tambien se ha utlizado para evitar un select, un update + condicion, para comprobar que hay asientos disponibles. La implementación sigue siendo defensiva, pero la comprobación de si se puede hacer el UPDATE se traslada al propio UPDATE.
+--
+-- * P4.5  ¿De qué otro modo crees que podrías resolver el problema propuesto? Incluye el
+-- pseudocódigo.
+-- 
+-- 
+--
 
 
 create or replace
