@@ -62,10 +62,12 @@ create or replace procedure reservar_evento(
   evento_pasado EXCEPTION;
   PRAGMA EXCEPTION_INIT(evento_pasado, -20001);
   msg_evento_pasado CONSTANT VARCHAR2(100) := 'No se pueden reservar eventos pasados.';
+
 -- Excepcion Tarea 2.2
   cliente_no_existe EXCEPTION;
   PRAGMA EXCEPTION_INIT(cliente_no_existe, -20002);
   msg_cliente_no_existe CONSTANT VARCHAR2(100) := 'Cliente inexistente.';
+
 -- Excepcion Tarea 2.1
   evento_no_existe EXCEPTION;
   PRAGMA EXCEPTION_INIT(evento_no_existe, -20003);
@@ -75,6 +77,7 @@ create or replace procedure reservar_evento(
   saldo_insuficiente EXCEPTION;
   PRAGMA EXCEPTION_INIT(saldo_insuficiente, -20004);
   msg_saldo_insuficiente CONSTANT VARCHAR2(100) := 'Saldo en abono insuficiente';
+  
 -- Excepción extra añadida
   multiples_eventos EXCEPTION;
   PRAGMA EXCEPTION_INIT(multiples_eventos, -20005);
@@ -84,6 +87,7 @@ create or replace procedure reservar_evento(
   sin_asientos EXCEPTION;
   PRAGMA EXCEPTION_INIT(sin_asientos, -20006);
   msg_sin_asientos CONSTANT VARCHAR2(100) := 'No hay asientos disponibles';
+
 --Declaración de variables 
   v_evento_id eventos.id_evento%TYPE;
   v_fecha_evento eventos.fecha%TYPE;
