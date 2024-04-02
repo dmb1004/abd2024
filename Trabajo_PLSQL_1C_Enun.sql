@@ -94,16 +94,19 @@ create or replace procedure reservar_evento(
 
 begin
     begin
-        -- Comprueba que el evento existe y no ha pasado
+        -- Comprueba que el evento existe, se realiza mediante un cursor implicito en este caso no hemos aplicado un bloqueo pesimista 
+        -- para favorer la eficiencia y la concurrencia. Se utiliza un select para comprobar la existencia del evento pero a su vez
+        -- aprovecha la información para capturar la excepcion NO_DATA_FOUND.
         select id_evento, fecha
         into v_evento_id, v_fecha_evento
         from eventos
         where nombre_evento = arg_nombre_evento;
+
         -- lanza excepcion si el evento ya ha pasado
         if v_fecha_evento < sysdate then
             raise_application_error(-20001, msg_evento_pasado);
         end if;
-       -- lanza excepcion si hay mas de un evento con ese nombre
+   
     exception 
         when no_data_found then
             rollback;
@@ -111,23 +114,31 @@ begin
         when others then
             raise;
     end;
--- Comprueba que el cliente existe,Se realiza mediante un cursor implicito con la clausula for update para que el correcto funcionamiento no dependa del nivel de aislamiento. Es una estrategia intermedia ya que se utiliza un select para comprobar la existencia pero a su vez aprovecha la información para capturar la excepcion NO_DATA_FOUND.
+
+  -- Comprueba que el cliente existe, se realiza mediante un cursor implicito con la clausula for update para que el correcto funcionamiento
+  -- no dependa del nivel de aislamiento. Es una estrategia intermedia ya que se utiliza un select para comprobar la existencia pero a su vez
+  -- aprovecha la información para capturar la excepcion NO_DATA_FOUND.
   select clientes.NIF, abonos.id_abono, abonos.saldo
   into v_NIF, v_id_abono, v_saldo
   from clientes join abonos on clientes.NIF = abonos.cliente
   where clientes.NIF = arg_NIF_cliente
   for update;
+
 -- Comprobamos que el cliente tiene saldo suficiente
   if v_saldo <= 0 then
     raise_application_error(-20004, msg_saldo_insuficiente);
   end if;
+
 -- Actualizamos el saldo del abono
   UPDATE abonos SET saldo = saldo - 1 WHERE id_abono = v_id_abono;
--- Comprobamos que hay asientos disponibles
+
+-- Update de los asientos disponibles, se realiza mediante una estrategia defensiva con caracteristicas propias de estrategias agresivas. 
+-- Se hace un update pero la comprobación de si se puede hacer el update se traslada al propio update y luego se comprueba si se ha actualizado
   UPDATE eventos
   SET asientos_disponibles = asientos_disponibles - 1
   WHERE id_evento = v_evento_id
   and asientos_disponibles > 0;
+
 -- Si se ha actualizado una fila, se ha realizado la reserva, sino se lanza una excepcion por falta de asientos
   if sql%rowcount=1 then
     insert into reservas values (seq_reservas.nextval, arg_NIF_cliente, v_evento_id, v_id_abono, arg_fecha);
@@ -138,6 +149,7 @@ begin
   end if;
 
   commit;
+
 -- Captura de excepciones y rollback
 exception
   when NO_DATA_FOUND then
@@ -151,25 +163,36 @@ end;
 /
 
   
------- Deja aquí tus respuestas a las preguntas del enunciado:
+
 -- * P4.1  El resultado de la comprobación del paso 2 ¿sigue siendo fiable en el paso 3?:
 --
 -- No sigue siendo fiable en el paso 3, ya que en el paso 3 se puede haber modificado el estado de la base de datos.
 -- siendo posible que el evento ya no exista o el evento ya haya pasado debido a que otra sesion haya modificado el estado de estos valores de la base de datos simultaneamente.
 --
+--
 -- * P4.2 2 En el paso 3, la ejecución concurrente del mismo procedimiento reservar_evento con, quizás
 -- otros o los mimos argumentos, ¿podría habernos añadido una reserva no recogida en esa SELECT
 -- que fuese incompatible con nuestra reserva?, ¿por qué?:
 --
--- Una sesion concurrente no puede añadir una nueva reserva que afecte al select ya que hemos utililzado una estrategia pesismista con el uso de la clausula FOR UPDATE en la consulta, lo que bloquea la fila seleccionada hasta que se realice un commit o un rollback. Aunque no afecta a los datos recogigos por la SELECT, si que puede darse el caso de que otra sesion concurrente haya hecho una reserva en el mismo evento y haya agotado los asientos disponibles, lo que provocaria que la reserva actual falle por falta de asientos disponibles. Aunque este error se pueda producir en reducidas ocasiones, hemos ganado eficiencia al no tener que bloquear la tabla eventos para evitar que se realicen reservas en el mismo evento simultaneamente.
+-- Una sesion concurrente no puede añadir una nueva reserva que afecte al select ya que hemos utililzado una estrategia pesismista con el uso de la clausula
+-- FOR UPDATE en la consulta, lo que bloquea la fila seleccionada hasta que se realice un commit o un rollback. Aunque no afecta a los datos recogigos por la SELECT, 
+-- si que puede darse el caso de que otra sesion concurrente haya hecho una reserva en el mismo evento y haya agotado los asientos disponibles, lo que provocaria que 
+-- la reserva actual falle por falta de asientos disponibles. Aunque este error se pueda producir en reducidas ocasiones, hemos ganado eficiencia al no tener que bloquear 
+-- la tabla eventos para evitar que se realicen reservas en el mismo evento simultaneamente.
+--
 --
 -- * P4.3 ¿Qué estrategia de programación has utilizado?
 -- 
--- Se ha utilizado una estrategia defensiva en la que se comprueban los datos antes de realizar la reserva, sin embargo, manteniendo la linea defensiva hemos implementado tambien caracteristicas tipicas de las estrategias agresivas.
+-- Se ha utilizado una estrategia defensiva en la que se comprueban los datos antes de realizar la reserva, sin embargo, manteniendo la linea defensiva hemos 
+-- implementado tambien caracteristicas tipicas de las estrategias agresivas.
+--
 --
 -- * P4.4 ¿Cómo puede verse este hecho en tu código?
 --
--- Como hemos dicho anteriormente, para utilizar una estrategia defensiva pero con caracteristicas agresivas hemos utilizado lo siguiente: Por ejemplo a la hora de utilizar la informacion dada por las excepciones como NO_DATA_FOUND o TOO_MANY_ROWS para ahorrar consultas. Tambien se ha utlizado para evitar un select, un update + condicion, para comprobar que hay asientos disponibles. La implementación sigue siendo defensiva, pero la comprobación de si se puede hacer el UPDATE se traslada al propio UPDATE.
+-- Como hemos dicho anteriormente, para utilizar una estrategia defensiva pero con caracteristicas agresivas hemos utilizado lo siguiente: Por ejemplo a la hora de 
+-- utilizar la informacion dada por las excepciones como NO_DATA_FOUND o TOO_MANY_ROWS para ahorrar consultas. Tambien se ha utlizado para evitar un select, un update 
+-- con una condición añadida, para comprobar que hay asientos disponibles. La implementación sigue siendo defensiva, pero la comprobación de si se puede hacer el UPDATE se traslada al propio UPDATE.
+--
 --
 -- * P4.5  ¿De qué otro modo crees que podrías resolver el problema propuesto? Incluye el
 -- pseudocódigo.
