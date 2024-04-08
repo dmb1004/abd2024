@@ -1,7 +1,7 @@
 /*
   Nombre: Reservas festival
   Descripción: Se presenta el caso de uso de una empresa de eventos que organiza un festival de música y teatro
-  Autor: Alvaro Marquez, David Martinez, Martin Gonzalez
+  Autor: Martin Gonzalez, Alvaro Marquez, David Martinez
   Fecha de Creación: 2024-03-26
 */
 drop table clientes cascade constraints;
@@ -257,12 +257,13 @@ exec inicializa_test;
 -- Completa el test
 
 create or replace procedure test_reserva_evento is
+    l_error_msg VARCHAR2(4000);
 begin
 	 
   --caso 1 Reserva correcta, se realiza
   begin
     inicializa_test;
-    reservar_evento('12345678A', 'concierto_bisbal', TO_DATE('12/12/2024', 'DD/MM/YYYY'));
+    reservar_evento('12345678A', 'concierto_la_moda', TO_DATE('27/06/2024', 'DD/MM/YYYY'));
     dbms_output.put_line('Caso 1: Reserva correcta completada.');
   exception
     when others then
@@ -295,7 +296,7 @@ begin
    --caso 4 Cliente inexistente  
   begin
     inicializa_test;
-    reservar_evento('11111111C', 'concierto_bisbal', TO_DATE('12/12/2024', 'DD/MM/YYYY'));
+    reservar_evento('11111111C', 'concierto_la_moda', TO_DATE('27/06/2023', 'DD/MM/YYYY'));
     dbms_output.put_line('Caso 4: El cliente no debería existir');
   exception
     when others then
@@ -306,7 +307,7 @@ begin
   --caso 5 El cliente no tiene saldo suficiente
   begin
     inicializa_test;
-    reservar_evento('11111111B', 'concierto_bisbal', TO_DATE('12/12/2024', 'DD/MM/YYYY'));
+    reservar_evento('11111111B', 'concierto_la_moda', TO_DATE('27/06/2023', 'DD/MM/YYYY'));
     dbms_output.put_line('Caso 5: El cliente no debería tener suficiente saldo');
   exception
     when others then
@@ -317,7 +318,7 @@ begin
    --caso extra El evento no tiene asientos disponibles
   begin
     inicializa_test;
-    reservar_evento('12345678A', 'concierto_chichos', TO_DATE('12/12/2024', 'DD/MM/YYYY'));
+    reservar_evento('12345678A', 'concierto_la_moda', TO_DATE('27/06/2023', 'DD/MM/YYYY'));
     dbms_output.put_line('Caso 6: El cliente no podría reservar un concierto sin asientos');
   exception
     when others then
