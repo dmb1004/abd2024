@@ -201,6 +201,20 @@ end;
 -- * P4.5  ¿De qué otro modo crees que podrías resolver el problema propuesto? Incluye el
 -- pseudocódigo.
 -- 
+-- En nuestro caso hemos realizado una implementacion hibrida entre la estrategía defensiva y la agresiva, 
+-- pero se podría haber realizado una implementación totalmente defensiva. Hemos querido que los usuarios puedan reservar el mismo
+-- evento simultaneamente, pero si se implementa un estrategía puramente defensiva podríamos hacer lo siguiente:
+--
+-- 1. Comprobar que el evento existe y que no ha pasado mediante un select for update.
+-- 2. Comprobar que el cliente existe y que tiene saldo suficiente mediante un select for update.
+-- 3. Comprobar que hay asientos disponibles mediante un select for update.
+-- 4. Realizar la reserva.
+--
+-- De esta forma se bloquearían las filas seleccionadas hasta que se realice un commit o un rollback, evitando que se realicen reservas
+-- en el mismo evento simultaneamente y evitando que un usuario pueda recibir una excepción debido a que intente reservar un evento para el que 
+-- por ejemplo se hayan agotado los asientos.
+-- Es una implementación más segura, pero menos eficiente y más restrictiva, en este caso pensamos que la eficiencia y la concurrencia son más importantes
+-- y por tanto nuestra primera implementación es mucho más apropiada.
 -- 
 --
 
